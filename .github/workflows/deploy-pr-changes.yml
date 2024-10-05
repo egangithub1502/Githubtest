@@ -66,13 +66,14 @@ jobs:
           REMOTE_HOST: ${{ secrets.REMOTE_HOST_GCP }}
           DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"
           BACKUP_PATH: "/home/Jegan/profit-site-en-backup"  # Ensure this path is correct
+          DATE: $(date +'%Y%m%d_%H%M%S')  # Format the date for backup
+
          
         run: |
           echo "$SSH_PRIVATE_KEY" > private_key
           chmod 600 private_key
           mkdir -p ~/.ssh
           ssh-keyscan -H $REMOTE_HOST >> ~/.ssh/known_hosts
-          DATE: $(date +'%Y%m%d_%H%M%S')  # Format the date for backup
           changed_files="${{ needs.list-files.outputs.changed_files }}"
           if [ -z "$changed_files" ]; then
             echo "No files to deploy."
