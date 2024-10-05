@@ -8,7 +8,7 @@ on:
 
 jobs:
   list-files:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest  # Change to ubuntu-latest
     outputs:
       changed_files: ${{ steps.check.outputs.changed_files }}  # Define output
 
@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
-
+          
       - name: Get PR number and check changed files
         id: check
         env:
@@ -40,7 +40,7 @@ jobs:
           echo "::set-output name=changed_files::$changed_files_single_line"  # Set the output
           
   deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest  # Change to ubuntu-latest
     needs: list-files
 
     steps:
@@ -87,6 +87,8 @@ jobs:
             echo "No files to deploy."
             exit 0  # Exit if there are no files to deploy
           fi
+
+          # Split changed files into an array
           files=($changed_files)
           DATE=$(date +%F-%H-%M)
           echo "Number of Files = ${#files[@]}"
@@ -102,6 +104,21 @@ jobs:
               fi
               echo "Deploying $file to $REMOTE_HOST"
               scp -o StrictHostKeyChecking=no -i private_key "$GIT_PATH/$file" "$REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
+              
+              # Check if the scp command was successful
+              if [ $? -ne 0 ]; then
+                  echo "Failed to copy $file to $REMOTE_HOST."
+                  exit 1  # Exit if the copy fails
+              fi
+
+              # Verify if the file was successfully copied
+              if ssh -i private_key $REMOTE_USER@$REMOTE_HOST "[ -f '$DEPLOY_PATH/$file' ]"; then
+                  echo "$file successfully copied to $REMOTE_HOST"
+              else
+                  echo "Failed to verify $file on $REMOTE_HOST"
+                  exit 1
+              fi
+
               ssh -vvv -i private_key $REMOTE_USER@$REMOTE_HOST "sudo chown -R www-data: '$DEPLOY_PATH/$file'; sudo chmod 640 '$DEPLOY_PATH/$file'"
               echo "$file deployed successfully"
           done
