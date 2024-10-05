@@ -83,7 +83,7 @@ jobs:
               # Increase verbosity for debugging
               if ssh  -i private_key $REMOTE_USER@$REMOTE_HOST "[ -f '$DEPLOY_PATH/$file' ]"; then
                   echo "File exists, proceeding with backup."
-                  ssh  -i private_key $REMOTE_USER@$REMOTE_HOST "sudo cp -r '$DEPLOY_PATH/$file' '$BACKUP_PATH/$file-bak-$DATE'"
+                  ssh  -i private_key $REMOTE_USER@$REMOTE_HOST "cp -r '$DEPLOY_PATH/$file' '$BACKUP_PATH/$file-bak-$DATE'"
               else
                   echo "File does not exist or connection failed."
                   exit 1  # Exit if there's an issue
