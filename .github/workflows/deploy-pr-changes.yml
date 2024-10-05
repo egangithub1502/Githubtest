@@ -36,9 +36,10 @@ jobs:
           changed_files_single_line=$(echo "$changed_files" | tr '\n' ' ')
           echo "Changed files single line: $changed_files_single_line"  # Debug log
           
-          # Save the changed files in the environment variable
+          # Save the changed files as an output
           echo "changed_files=$changed_files_single_line" >> $GITHUB_ENV
-          echo "Changed files saved to GITHUB_ENV"  # Debug log
+          echo "::set-output name=changed_files::$changed_files_single_line"  # Set output for next job
+          echo "Changed files saved to output"  # Debug log
 
   deploy:
     runs-on: ubuntu-latest
@@ -51,13 +52,13 @@ jobs:
       - name: Get changed files from previous step
         id: get_changed_files
         run: |
-          # Access the environment variable set in GITHUB_ENV
-          changed_files="${{ env.changed_files }}"
-          echo "Changed files: $changed_files"  # Should log the files retrieved from GITHUB_ENV
+          # Access the output from the previous job
+          changed_files="${{ needs.list-files.outputs.changed_files }}"
+          echo "Changed files: $changed_files"  # Log the files retrieved from outputs
           echo "$changed_files" > changed_files.txt
 
       - name: Deploy Changed Files to GCP VM
-        if: success() && env.changed_files != ''  # Ensure there are changed files
+        if: success() && needs.list-files.outputs.changed_files != ''  # Ensure there are changed files
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_GCP }}
           REMOTE_USER: ${{ secrets.REMOTE_USER_GCP }}  # Your GCP VM user
@@ -74,7 +75,7 @@ jobs:
           # Add the host to known_hosts to prevent connection issues
           ssh-keyscan -H $REMOTE_HOST >> ~/.ssh/known_hosts
 
-          changed_files="${{ env.changed_files }}"
+          changed_files="${{ needs.list-files.outputs.changed_files }}"
           echo "Changed files retrieved in deploy step: $changed_files"  # Debug log
           
           files=($changed_files)
