@@ -70,9 +70,9 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_GCP }}  # Use your GCP SSH key secret
           REMOTE_USER: ${{ secrets.REMOTE_USER_GCP }}  # Your GCP VM user
           REMOTE_HOST: ${{ secrets.REMOTE_HOST_GCP }}  # GCP VM External IP
-          GIT_PATH: "/home/jegan/git-rsync-en"
-          DEPLOY_PATH: "/home/jegan/www_profitokrs_com_6_4_1"
-          BACKUP_PATH: "/home/jegan/profit-site-en-backup"
+          GIT_PATH: "/home/Jegan/git-rsync-en"
+          DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"
+          BACKUP_PATH: "/home/Jegan/profit-site-en-backup"
         run: |
           # Create a temporary file for the SSH key
           echo "$SSH_PRIVATE_KEY" > private_key
