@@ -8,7 +8,8 @@ on:
 
 jobs:
   list-files:
-    runs-on: ubuntu-latest  # Change to ubuntu-latest
+    runs-on: ubuntu-latest  # Runs on the latest version of Ubuntu
+
     outputs:
       changed_files: ${{ steps.check.outputs.changed_files }}  # Define output
 
@@ -29,24 +30,24 @@ jobs:
           # Get PR number from the event
           pr_number=${{ github.event.pull_request.number }}
           echo "PR Number: $pr_number"  # Debug log
+          
           # Use GitHub CLI to fetch details of the PR and list changed files
           changed_files=$(gh pr view $pr_number --json files --jq '.files[].path')
           echo "Changed files from gh command: $changed_files"  # Debug log
+          
           # Convert the list of changed files into a single line (space-separated)
           changed_files_single_line=$(echo "$changed_files" | tr '\n' ' ')
           echo "Changed files single line: $changed_files_single_line"  # Debug log
+          
           # Save the changed files in the environment variable
           echo "changed_files=$changed_files_single_line" >> $GITHUB_ENV
           echo "::set-output name=changed_files::$changed_files_single_line"  # Set the output
-          
+
   deploy:
-    runs-on: ubuntu-latest  # Change to ubuntu-latest
+    runs-on: ubuntu-latest  # Runs on the latest version of Ubuntu
     needs: list-files
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
       - name: Get changed files from previous step
         id: get_changed_files
         run: |
@@ -70,9 +71,7 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_GCP }}  # Use your GCP SSH key secret
           REMOTE_USER: ${{ secrets.REMOTE_USER_GCP }}  # Your GCP VM user
           REMOTE_HOST: ${{ secrets.REMOTE_HOST_GCP }}  # GCP VM External IP
-          GIT_PATH: "/home/Jegan/git-rsync-en"
-          DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"
-          BACKUP_PATH: "/home/Jegan/profit-site-en-backup"
+          DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"  # The path on the remote server where files will be copied
         run: |
           # Create a temporary file for the SSH key
           echo "$SSH_PRIVATE_KEY" > private_key
@@ -81,44 +80,22 @@ jobs:
           # Add the remote host's SSH key to known hosts
           mkdir -p ~/.ssh  # Ensure the .ssh directory exists
           ssh-keyscan -H $REMOTE_HOST >> ~/.ssh/known_hosts
-
+          
           changed_files="${{ needs.list-files.outputs.changed_files }}"  # Correctly access it as output
+          
           if [ -z "$changed_files" ]; then
             echo "No files to deploy."
             exit 0  # Exit if there are no files to deploy
           fi
-
-          # Split changed files into an array
+          
           files=($changed_files)
-          DATE=$(date +%F-%H-%M)
-          echo "Number of Files = ${#files[@]}"
-          echo " "
           for file in "${files[@]}"; do
-              echo "Connecting to $REMOTE_HOST"
-              if ssh -vvv -i private_key $REMOTE_USER@$REMOTE_HOST "[ -f '$DEPLOY_PATH/$file' ]"; then
-                  echo "File exists, proceeding with backup."
-                  ssh -vvv -i private_key $REMOTE_USER@$REMOTE_HOST "sudo cp -r '$DEPLOY_PATH/$file' '$BACKUP_PATH/$file-bak-$DATE'"
-              else
-                  echo "File does not exist or connection failed."
-                  exit 1  # Exit if there's an issue
-              fi
-              echo "Deploying $file to $REMOTE_HOST"
-              scp -o StrictHostKeyChecking=no -i private_key "$GIT_PATH/$file" "$REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
-              
-              # Check if the scp command was successful
-              if [ $? -ne 0 ]; then
-                  echo "Failed to copy $file to $REMOTE_HOST."
-                  exit 1  # Exit if the copy fails
-              fi
-
-              # Verify if the file was successfully copied
-              if ssh -i private_key $REMOTE_USER@$REMOTE_HOST "[ -f '$DEPLOY_PATH/$file' ]"; then
-                  echo "$file successfully copied to $REMOTE_HOST"
-              else
-                  echo "Failed to verify $file on $REMOTE_HOST"
-                  exit 1
-              fi
-
-              ssh -vvv -i private_key $REMOTE_USER@$REMOTE_HOST "sudo chown -R www-data: '$DEPLOY_PATH/$file'; sudo chmod 640 '$DEPLOY_PATH/$file'"
-              echo "$file deployed successfully"
+            echo "Attempting to copy $file to $REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
+            scp -o StrictHostKeyChecking=no -i private_key "$file" "$REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
+            
+            if [ $? -ne 0 ]; then
+              echo "Error occurred while copying $file."
+              exit 1
+            fi
+            echo "$file copied successfully."
           done
