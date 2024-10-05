@@ -8,10 +8,9 @@ on:
 
 jobs:
   list-files:
-    runs-on: ubuntu-latest  # Runs on the latest version of Ubuntu
-
+    runs-on: self-hosted
     outputs:
-      changed_files: ${{ steps.check.outputs.changed_files }}  # Define output
+      changed_files: ${{ steps.check.outputs.changed_files }}
 
     steps:
       - name: Checkout code
@@ -21,38 +20,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
-          
+
       - name: Get PR number and check changed files
         id: check
         env:
-          GH_TOKEN: ${{ secrets.JEGANMERGE }}  # Set the GitHub token for gh authentication
+          GH_TOKEN: ${{ secrets.JEGANMERGE }}
         run: |
-          # Get PR number from the event
           pr_number=${{ github.event.pull_request.number }}
-          echo "PR Number: $pr_number"  # Debug log
-          
-          # Use GitHub CLI to fetch details of the PR and list changed files
+          echo "PR Number: $pr_number"
           changed_files=$(gh pr view $pr_number --json files --jq '.files[].path')
-          echo "Changed files from gh command: $changed_files"  # Debug log
-          
-          # Convert the list of changed files into a single line (space-separated)
+          echo "Changed files from gh command: $changed_files"
           changed_files_single_line=$(echo "$changed_files" | tr '\n' ' ')
-          echo "Changed files single line: $changed_files_single_line"  # Debug log
-          
-          # Save the changed files in the environment variable
           echo "changed_files=$changed_files_single_line" >> $GITHUB_ENV
-          echo "::set-output name=changed_files::$changed_files_single_line"  # Set the output
+          echo "::set-output name=changed_files::$changed_files_single_line"
 
   deploy:
-    runs-on: ubuntu-latest  # Runs on the latest version of Ubuntu
+    runs-on: ubuntu-latest
     needs: list-files
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
       - name: Get changed files from previous step
         id: get_changed_files
         run: |
-          # Access the output from the previous job
-          changed_files="${{ needs.list-files.outputs.changed_files }}"  
+          changed_files="${{ needs.list-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
           echo "$changed_files" > changed_files.txt
 
@@ -62,37 +55,33 @@ jobs:
             echo "Changed files detected, proceeding with deployment."
           else
             echo "No changed files found, skipping deployment."
-            exit 0  # Exit early if no files to deploy
+            exit 0
           fi
 
       - name: Deploy Changed Files to Remote Server
-        if: success() && needs.list-files.outputs.changed_files != ''  # Ensure this checks the variable correctly
+        if: success() && needs.list-files.outputs.changed_files != ''
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_GCP }}  # Use your GCP SSH key secret
-          REMOTE_USER: ${{ secrets.REMOTE_USER_GCP }}  # Your GCP VM user
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST_GCP }}  # GCP VM External IP
-          DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"  # The path on the remote server where files will be copied
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_GCP }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER_GCP }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST_GCP }}
+          DEPLOY_PATH: "/home/Jegan/www_profitokrs_com_6_4_1"
         run: |
-          # Create a temporary file for the SSH key
           echo "$SSH_PRIVATE_KEY" > private_key
-          chmod 600 private_key  # Set permissions for the private key
-          
-          # Add the remote host's SSH key to known hosts
-          mkdir -p ~/.ssh  # Ensure the .ssh directory exists
+          chmod 600 private_key
+          mkdir -p ~/.ssh
           ssh-keyscan -H $REMOTE_HOST >> ~/.ssh/known_hosts
-          
-          changed_files="${{ needs.list-files.outputs.changed_files }}"  # Correctly access it as output
-          
+
+          changed_files="${{ needs.list-files.outputs.changed_files }}"
           if [ -z "$changed_files" ]; then
             echo "No files to deploy."
-            exit 0  # Exit if there are no files to deploy
+            exit 0
           fi
-          
+
           files=($changed_files)
           for file in "${files[@]}"; do
+            # Use the relative path to the file
             echo "Attempting to copy $file to $REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
             scp -o StrictHostKeyChecking=no -i private_key "$file" "$REMOTE_USER@$REMOTE_HOST:$DEPLOY_PATH/$file"
-            
             if [ $? -ne 0 ]; then
               echo "Error occurred while copying $file."
               exit 1
