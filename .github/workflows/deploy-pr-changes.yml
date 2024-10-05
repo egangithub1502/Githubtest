@@ -8,7 +8,7 @@ on:
 
 jobs:
   list-files:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       changed_files: ${{ steps.check.outputs.changed_files }}
 
